@@ -1,0 +1,214 @@
+<!--
+ * @Author: caix 1058360098@qq.com
+ * @Date: 2023-11-02 16:28:51
+ * @LastEditors: caix 1058360098@qq.com
+ * @LastEditTime: 2023-11-29 16:37:49
+ * @FilePath: \monitor\src\main.html
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+-->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor</title>
+    <!-- import CSS -->
+    <!-- <link rel="stylesheet" href="../styles/elementui.css"> -->
+    <!-- 引入样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <link rel="stylesheet" href="../styles/index.css">
+    <style>
+      .el-table .warning-row {
+        background: oldlace;
+      }
+      .el-table .success-row {
+        background: #f0f9eb;
+      }
+      .toolbar {
+        margin: 10px 0;
+      }
+      .el-header {
+        padding: 0 10px;
+      }
+      .el-main {
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <el-container>
+        <el-header class="toolbar dis-flex ai-center">
+          <el-button 
+            class="mr-10"
+            type="primary"
+            round
+            :loading="loading"
+            :disabled="isAutoFresh"
+            @click="searchPage"
+          >刷新</el-button>
+          <div class="mr-10">
+            <el-checkbox v-model="isAutoFresh">自动刷新</el-checkbox>
+            <el-input-number 
+              v-model="freshTime"
+              controls-position="right"
+              :min="10"
+              :step="10"
+              step-strictly
+              :max="180"
+              size="mini"
+              @change="freshTimeChange"
+            ></el-input-number>
+            <span>秒</span>
+          </div>
+          <div class="mr-10">
+            <el-radio-group v-model="name" size="small" @input="searchPage">
+              <el-radio-button v-for="item in nameList" :key="item" :label="item"></el-radio-button>
+            </el-radio-group>
+          </div>
+          <el-checkbox
+            v-model="isNow"
+            :false-label="0"
+            :true-label="1"
+            @change="searchPage"
+          >今天</el-checkbox>
+        </el-header>
+        <el-main>
+          <el-table
+            v-loading="loading"
+            :data="tableData"
+            style="width: 100%"
+            border
+            :row-class-name="tableRowClassName"
+          >
+            <el-table-column prop="name" label="系统名称" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="type" label="错误类型" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="pathname" label="错误页面" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="msg" label="错误信息" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="hostname" label="IP" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="port" label="端口" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="created_at" label="BUG时间" width="auto" sortable show-overflow-tooltip></el-table-column>
+            <el-table-column prop="protocol" label="协议" width="auto" sortable show-overflow-tooltip></el-table-column>
+          </el-table>
+          <div class="dis-flex jc-end mt-10">
+            <el-pagination
+              @size-change="handleSizeChange"
+              @current-change="handleCurrentChange"
+              :current-page.sync="ipagination.current"
+              :page-sizes="ipagination.pageSizes"
+              :page-size.sync="ipagination.pageSize"
+              :layout="ipagination.layout"
+              :total="ipagination.total">
+            </el-pagination>
+          </div>
+        </el-main>
+      </el-container>
+    </div>
+  </body>
+  <!-- import Vue before Element -->
+  <script src="../utils/v2.js"></script>
+  <!-- import JavaScript -->
+  <script src="../utils/elementui.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      data: function() {
+        return { 
+          tableData: [],
+          timer: undefined,
+          loading: false,
+          isAutoFresh: true,
+          freshTime: 30,
+          name: '正式',
+          nameList: [
+            '全部',
+            '测试',
+            '正式'
+          ],
+          isNow: 1,
+          ipagination: {
+            pageSizes: [10, 30, 50, 100],
+            pageSize: 10,
+            layout: 'total, sizes, prev, pager, next, jumper',
+            current: 1,
+            total: 0
+          }
+        }
+      },
+      watch: {
+        isAutoFresh(flag) {
+          if (flag) {
+            this.createTimer()
+          } else {
+            this.clearTimer()
+          }
+        }
+      },
+      async mounted() {
+        this.searchPage()
+      },
+      destoryed () {
+        !this.isAutoFresh && this.clearTimer()
+      },
+      methods: {
+        // 创建定时器
+        createTimer() {
+          this.timer = setInterval(() => {
+            this.searchPage()
+          }, this.freshTime * 1000)
+        },
+        // 清除定时器
+        clearTimer() {
+          if (!this.timer) return
+          clearInterval(this.timer)
+          this.timer = undefined
+        },
+        async searchPage() {
+          this.loading = true
+          const url = `http://localhost:3000/api/log/listPage`
+          const headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+          let bodys = {
+            isNow: this.isNow,
+            offset: this.ipagination.current,
+            limit: this.ipagination.pageSize
+          }
+          this.name !== '全部' && (bodys['name'] = this.name)
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(bodys)
+          })
+          this.loading = false
+          const records = await res.json();
+          const { data, total } = records
+          this.tableData = data
+          this.$set(this.ipagination, 'total', total)
+        },
+        tableRowClassName({row, rowIndex}) {
+          if (rowIndex % 2 === 0) {
+            return 'warning-row';
+          } else {
+            return 'success-row';
+          }
+        },
+        // 自动刷新间隔事件
+        freshTimeChange() {
+          this.clearTimer()
+          this.createTimer()
+        },
+        handleSizeChange(val) {
+          this.$set(this.ipagination, 'pageSize', val)
+          this.searchPage()
+        },
+        handleCurrentChange(val) {
+          this.$set(this.ipagination, 'current', val)
+          this.searchPage()
+        }
+      }
+    })
+  </script>
+</html>

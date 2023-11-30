@@ -1,0 +1,235 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Monitor</title>
+    <script src="../utils/v3.js"></script>
+    <!-- 会使用最新版本，你最好指定一个版本 -->
+    <script src="../utils/nativeui.js"></script>
+    <link rel="stylesheet" href="../styles/index.css">
+  </head>
+  <body>
+    <div id="app">
+      <n-layout>
+        <n-layout-header content-style="padding: 10px;">
+          <div class="dis-flex ai-center mt-10">
+            <n-button
+              class="ml-10 mr-10"
+              type="info"
+              :loading="loading"
+              @click="searchPage"
+            >
+              刷新
+            </n-button>
+            <div class="dis-flex ai-center mr-10">
+              <n-checkbox 
+                v-model:checked="isAutoFresh"
+                @update:checked="searchPage"
+              >
+                自动刷新
+              </n-checkbox>
+              <n-input-number v-model:value="freshTime" clearable />
+              <el-input-number 
+                v-model:value="freshTime"
+                :min="10"
+                :step="10"
+                :max="180"
+                size="small"
+                @update:value="freshTimeChange"
+              ></el-input-number>
+              <span>秒</span>
+            </div>
+            <div class="mr-10">
+              <n-radio-group v-model:value="name" @update:value="searchPage">
+                <n-radio-button
+                  v-for="item in nameList"
+                  :key="item"
+                  :value="item"
+                  :label="item"
+                />
+              </n-radio-group>
+            </div>
+            <n-checkbox 
+              v-model:checked="isNow"
+              @update:checked="searchPage"
+            >
+              今天
+            </n-checkbox>
+          </div>
+        </n-layout-header>
+        <n-layout-content content-style="padding: 10px;">
+          <n-data-table
+            :loading="loading"
+            :single-line="false"
+            :columns="columns"
+            :data="data"
+            :bordered="false"
+          ></n-data-table>
+          <n-pagination
+            class="mt-10"
+            :display-order="ipagination.layout"
+            v-model:page="ipagination.current"
+            v-model:page-size="ipagination.pageSize"
+            :item-count="ipagination.total"
+            :page-sizes="ipagination.pageSizes"
+            @update:page="handleCurrentChange"
+            @update:page-size="handleSizeChange"
+            show-quick-jumper
+            show-size-picker
+          />
+        </n-layout-content>
+      </n-layout>
+    </div>
+    <script>
+      Vue.createApp({
+        setup() {
+          // 列信息
+          const columns = Vue.ref([
+          {
+              title: "系统名称",
+              key: "name"
+            },
+            {
+              title: "错误类型",
+              key: "type"
+            },
+            {
+              title: "错误页面",
+              key: "msg"
+            },
+            {
+              title: "IP",
+              key: "hostname"
+            },
+            {
+              title: "端口",
+              key: "port"
+            },
+            {
+              title: "BUG时间",
+              key: "created_at"
+            },
+            {
+              title: "协议",
+              key: "protocol"
+            }
+          ])
+          // 表格
+          const data = Vue.ref([])
+          // 分页
+          const ipagination = Vue.ref({
+            pageSizes: [
+              {
+                label: '10页',
+                value: 10
+              },
+              {
+                label: '30页',
+                value: 30
+              },
+              {
+                label: '50页',
+                value: 50
+              },
+              {
+                label: '100页',
+                value: 100
+              }
+            ],
+            pageSize: 10,
+            layout: [
+              'quick-jumper',
+              'pages',
+              'size-picker'
+            ],
+            current: 1,
+            total: 10
+          })
+          const loading = Vue.ref(false)
+          const freshTime = Vue.ref(30)
+          const timer = Vue.ref(null)
+          const isAutoFresh = Vue.ref(true)
+          const name = Vue.ref('正式')
+          const nameList = Vue.ref([
+            '全部',
+            '测试',
+            '正式'
+          ])
+          const isNow = Vue.ref(true)
+          // 获取数据源
+          const searchPage = async () => {
+            const url = `http://localhost:3000/api/log/listPage`
+            const headers = {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+            const { current, pageSize, total } = Vue.toRefs(ipagination)
+            let bodys = {
+              isNow: isNow.value ? 1 : 0,
+              offset: ipagination.value.current,
+              limit: ipagination.value.pageSize
+            }
+            name.value !== '全部' && (bodys['name'] = name.value)
+            loading.value = true
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify(bodys)
+            })
+            loading.value = false
+            const records = await res.json();
+            const { data: tableList, total: tableTotal } = records
+            data.value = tableList
+            ipagination.value.total = tableTotal
+          }
+
+          // 创建定时器
+          const createTimer = () => {
+            timer.value = setInterval(() => {
+              searchPage()
+            }, freshTime.value * 1000)
+          }
+
+          // 清除定时器
+          const clearTimer = () => {
+            if (!timer.value) return
+            clearInterval(timer.value)
+            timer.value = null
+          }
+
+          const freshTimeChange = () => {
+            clearTimer()
+            createTimer()
+          }
+
+          const handleSizeChange = (val) => {
+            ipagination.value.pageSize = val
+            searchPage()
+          }
+
+          const handleCurrentChange = (val) => {
+            ipagination.value.current = val
+            searchPage()
+          }
+
+          searchPage()
+          return {
+            columns,
+            data,
+            ipagination,
+            loading,
+            freshTime,
+            timer,
+            isAutoFresh,
+            name,
+            nameList,
+            isNow,
+            searchPage,
+            freshTimeChange,
+            handleSizeChange,
+            handleCurrentChange
+          }
+        }
+      }).use(naive).mount('#app')
+    </script>
+  </body>
+</html>

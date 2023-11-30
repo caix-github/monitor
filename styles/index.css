@@ -1,0 +1,18 @@
+.dis-flex {
+  display: flex;
+}
+.jc-end {
+  justify-content: flex-end;
+}
+.ai-center {
+  align-items: center;
+}
+.mt-10 {
+  margin-top: 10px;
+}
+.ml-10 {
+  margin-left: 10px;
+}
+.mr-10 {
+  margin-right: 10px;
+}
